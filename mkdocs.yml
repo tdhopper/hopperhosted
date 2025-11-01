@@ -1,0 +1,13 @@
+site_name: HopperHosted
+site_url: https://hopperhosted.com/
+theme:
+  name: material
+  palette: [{ scheme: slate }]
+  features: [navigation.instant, content.code.copy]
+plugins: [search, minify]
+markdown_extensions: [admonition, pymdownx.details, pymdownx.superfences, pymdownx.tabbed, attr_list]
+nav:
+  - Dashboard: index.md
+  - Apps: apps.md
+  - Ops:
+      - Runbooks: ops/runbooks.md
