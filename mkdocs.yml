@@ -2,10 +2,38 @@ site_name: HopperHosted
 site_url: https://hopperhosted.com/
 theme:
   name: material
-  palette: [{ scheme: slate }]
-  features: [navigation.instant, content.code.copy]
+  custom_dir: overrides
+  palette:
+    # 80s Synthwave Color Scheme
+    scheme: synthwave
+    primary: custom
+    accent: custom
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+    - content.code.annotate
+  font:
+    text: Orbitron
+    code: Share Tech Mono
+  icon:
+    logo: material/vhs
 plugins: [search, minify]
-markdown_extensions: [admonition, pymdownx.details, pymdownx.superfences, pymdownx.tabbed, attr_list]
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - md_in_html
+extra_css:
+  - stylesheets/synthwave.css
 nav:
   - Dashboard: index.md
   - Apps: apps.md
