@@ -31,16 +31,16 @@ The local development server runs at `http://127.0.0.1:8000/` with automatic rel
 ### Configuration
 - **mkdocs.yml**: Main configuration file defining:
   - Site metadata (name, URL)
-  - Material theme with slate color scheme
+  - Material theme with light/dark mode toggle (indigo/blue color scheme)
   - Navigation structure (Dashboard, Apps, Ops sections)
   - Enabled plugins: search, minify
-  - Markdown extensions for admonitions, code blocks, tabs
+  - Markdown extensions for admonitions, code blocks, tabs, syntax highlighting
 
 ### Content Structure
 - **docs/**: Contains all markdown documentation files
   - `index.md`: Dashboard with links to hosted services
-  - `apps.md`: Apps documentation (referenced in nav but not yet created)
-  - `ops/runbooks.md`: Operational runbooks (referenced in nav but not yet created)
+  - `apps.md`: Application catalog with service descriptions
+  - `ops/runbooks.md`: Comprehensive operational runbooks for Docker, Jellyfin, and Caddy
 
 ### Dependencies
 Managed via `pyproject.toml` with uv:
@@ -50,8 +50,23 @@ Managed via `pyproject.toml` with uv:
 ### Output
 - **site/**: Generated static site (git-ignored, created by `mkdocs build`)
 
+## Theme
+
+Uses Material for MkDocs with:
+- Light/dark mode toggle (follows system preference by default)
+- Indigo primary color, blue accent
+- Clean, readable design focused on documentation
+- Code syntax highlighting
+- Search with suggestions
+- Navigation sections and instant loading
+
 ## Adding New Pages
 
 1. Create markdown file in `docs/` directory
 2. Add entry to `nav` section in `mkdocs.yml`
-3. Use Material theme features: admonitions, code blocks with copy button, tabs, details/summary
+3. Use Material theme features:
+   - Admonitions (note, warning, tip, info)
+   - Code blocks with copy button
+   - Tabbed content
+   - Tables
+   - Icons via emoji extension

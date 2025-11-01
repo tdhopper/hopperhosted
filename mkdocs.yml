@@ -2,24 +2,36 @@ site_name: HopperHosted
 site_url: https://hopperhosted.com/
 theme:
   name: material
-  custom_dir: overrides
   palette:
-    # 80s Synthwave Color Scheme
-    scheme: synthwave
-    primary: custom
-    accent: custom
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
   features:
     - navigation.instant
     - navigation.tracking
     - navigation.sections
     - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
     - content.code.copy
     - content.code.annotate
-  font:
-    text: Orbitron
-    code: Share Tech Mono
+    - content.tabs.link
   icon:
-    logo: material/vhs
+    logo: material/server-network
 plugins: [search, minify]
 markdown_extensions:
   - admonition
@@ -32,10 +44,8 @@ markdown_extensions:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - md_in_html
-extra_css:
-  - stylesheets/synthwave.css
-nav:
-  - Dashboard: index.md
-  - Apps: apps.md
-  - Ops:
-      - Runbooks: ops/runbooks.md
+  - tables
+  - footnotes
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
