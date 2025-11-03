@@ -50,38 +50,68 @@ Custom build required for Cloudflare DNS-01 challenge support.
 === "Configure brew services"
 
     ```bash
-    # Stop existing service
-    brew services stop caddy
+    # Initialize plist (creates the file)
     brew services start caddy && sleep 1 && brew services stop caddy
 
     # Update LaunchAgent plist
+    PREFIX="$(brew --prefix)"
     PLIST=~/Library/LaunchAgents/homebrew.mxcl.caddy.plist
 
+    # Set custom binary path
     /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 $PREFIX/libexec/caddy/caddy-cloudflare" "$PLIST"
-    /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables dict" "$PLIST" 2>/dev/null || true
-    /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:CLOUDFLARE_API_TOKEN YOUR_TOKEN_HERE" "$PLIST"
-    /usr/libexec/PlistBuddy -c "Add :KeepAlive bool true" "$PLIST" 2>/dev/null || true
 
-    # Reload service
+    # Add Cloudflare API token environment variable
+    /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:CLOUDFLARE_API_TOKEN string YOUR_TOKEN_HERE" "$PLIST"
+
+    # Reload service with new configuration
     launchctl unload "$PLIST"
     launchctl load "$PLIST"
-    brew services start caddy
     ```
+
+    !!! warning "Important: Avoid brew services commands"
+        After initial setup, **DO NOT** use `brew services restart/start/stop` as it regenerates the plist and erases custom settings. Use `launchctl` directly:
+        ```bash
+        launchctl unload "$PLIST"
+        launchctl load "$PLIST"
+        ```
 
 !!! info
     Get Cloudflare API token from: https://dash.cloudflare.com/profile/api-tokens
 
+=== "Secret Management with yadm"
+
+    The Caddyfile uses an environment variable for the Cloudflare API token, keeping secrets out of version control.
+
+    ```bash
+    # Add plist to yadm ignore (contains actual token)
+    mkdir -p ~/.config/yadm
+    echo "Library/LaunchAgents/homebrew.mxcl.caddy.plist" >> ~/.config/yadm/ignore
+
+    # The Caddyfile in ~ is safe to commit
+    yadm add ~/Caddyfile ~/.config/yadm/ignore
+    yadm commit -m "Add Caddyfile with secure token handling"
+    ```
+
+    The Caddyfile references the token via `{env.CLOUDFLARE_API_TOKEN}`:
+    ```
+    *.hopperhosted.com hopperhosted.com {
+      tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+      }
+    }
+    ```
 
 ### Important File Locations
 
 | Purpose | Path |
 |---------|------|
 | **Active Config** | `/usr/local/etc/Caddyfile` |
-| **Working Copy** | `~/Caddyfile` |
-| **Binary** | `/usr/local/opt/caddy/bin/caddy` |
+| **Working Copy** | `~/Caddyfile` (tracked in yadm) |
+| **Custom Binary** | `/usr/local/libexec/caddy/caddy-cloudflare` |
+| **Standard Binary** | `/usr/local/opt/caddy/bin/caddy` (unused) |
 | **Logs** | `/usr/local/var/log/caddy.log` |
 | **Data Directory** | `/usr/local/var/lib/caddy/` |
-| **LaunchAgent** | `~/Library/LaunchAgents/homebrew.mxcl.caddy.plist` |
+| **LaunchAgent** | `~/Library/LaunchAgents/homebrew.mxcl.caddy.plist` (ignored by yadm) |
 
 !!! note
     LaunchAgent is hardcoded to use `/usr/local/etc/Caddyfile`, not `~/Caddyfile`
@@ -92,20 +122,24 @@ Custom build required for Cloudflare DNS-01 challenge support.
 === "Check Status"
 
     ```bash
-    # Via SSH
-    ssh dobro "ps aux | grep caddy | grep -v grep"
+    # Check if caddy is running
+    ps aux | grep caddy-cloudflare | grep -v grep
 
     # LaunchAgent status
-    ssh dobro "launchctl list | grep caddy"
+    launchctl list | grep caddy
 
     # Check listening ports
-    ssh dobro "netstat -an | grep -E ':(80|443).*LISTEN'"
+    lsof -nP -iTCP -sTCP:LISTEN | grep -E ':(80|443)'
+
+    # Verify correct binary is running
+    ps aux | grep caddy | grep -v grep
+    # Should show: /usr/local/libexec/caddy/caddy-cloudflare
     ```
 
 === "View Logs"
 
     ```bash
-    ssh dobro "tail -f /usr/local/var/log/caddy.log"
+    tail -f /usr/local/var/log/caddy.log
     ```
 
 === "Edit Configuration"
@@ -115,26 +149,37 @@ Custom build required for Cloudflare DNS-01 challenge support.
     vim ~/Caddyfile
 
     # Copy to active location
-    ssh dobro "sudo cp ~/Caddyfile /usr/local/etc/Caddyfile"
+    sudo cp ~/Caddyfile /usr/local/etc/Caddyfile
     ```
 
 === "Validate Config"
 
     ```bash
-    ssh dobro "/usr/local/opt/caddy/bin/caddy validate --config /usr/local/etc/Caddyfile"
+    # Requires CLOUDFLARE_API_TOKEN for validation
+    CLOUDFLARE_API_TOKEN=xxx /usr/local/libexec/caddy/caddy-cloudflare validate --config /usr/local/etc/Caddyfile
     ```
 
 === "Reload Config"
 
     ```bash
-    ssh dobro "sudo /usr/local/opt/caddy/bin/caddy reload --config /usr/local/etc/Caddyfile"
+    # Reload without full restart (faster)
+    /usr/local/libexec/caddy/caddy-cloudflare reload --config /usr/local/etc/Caddyfile
+
+    # Or full restart via launchctl
+    launchctl unload ~/Library/LaunchAgents/homebrew.mxcl.caddy.plist
+    launchctl load ~/Library/LaunchAgents/homebrew.mxcl.caddy.plist
     ```
 
 === "Restart Service"
 
     ```bash
-    ssh dobro "launchctl stop homebrew.mxcl.caddy && launchctl start homebrew.mxcl.caddy"
+    # Use launchctl (NOT brew services - it overwrites custom plist)
+    launchctl unload ~/Library/LaunchAgents/homebrew.mxcl.caddy.plist
+    launchctl load ~/Library/LaunchAgents/homebrew.mxcl.caddy.plist
     ```
+
+    !!! warning
+        Avoid `brew services restart caddy` - it regenerates the plist and removes custom binary path and environment variables
 
 ---
 
@@ -207,7 +252,9 @@ Custom build required for Cloudflare DNS-01 challenge support.
 
     - ❌ Caddyfile not found at `/usr/local/etc/Caddyfile`
     - ❌ Syntax errors in Caddyfile
-    - ❌ Missing Cloudflare DNS module
+    - ❌ Missing Cloudflare DNS module (using wrong binary)
+    - ❌ Missing CLOUDFLARE_API_TOKEN environment variable
+    - ❌ HTTP backend with TLS transport config (causes crash)
     - ❌ Port 80/443 already in use
 
     **Verify ports are free:**
@@ -228,8 +275,14 @@ Custom build required for Cloudflare DNS-01 challenge support.
     2. Check reverse_proxy IP/port
 
     3. TLS mismatch?
-       - HTTP backend → no transport config
-       - HTTPS backend → add TLS transport
+       - HTTP backend → no transport config (e.g., `reverse_proxy 127.0.0.1:8096`)
+       - HTTPS backend → add TLS transport with `tls_insecure_skip_verify` if using self-signed cert
+
+       !!! danger "Critical Error"
+           Using `tls_insecure_skip_verify` with HTTP backends causes Caddy to crash with:
+           ```
+           upstream address scheme is HTTP but transport is configured for HTTP+TLS
+           ```
 
 === "Certificate Issues"
 
@@ -284,17 +337,19 @@ Custom build required for Cloudflare DNS-01 challenge support.
 
 2. **Validate syntax** (optional but recommended)
    ```bash
-   caddy validate --config ~/Caddyfile
+   CLOUDFLARE_API_TOKEN=xxx /usr/local/libexec/caddy/caddy-cloudflare validate --config ~/Caddyfile
    ```
 
 3. **Copy to active location**
    ```bash
-   ssh dobro "sudo cp ~/Caddyfile /usr/local/etc/Caddyfile"
+   sudo cp ~/Caddyfile /usr/local/etc/Caddyfile
    ```
 
 4. **Reload Caddy**
    ```bash
-   ssh dobro "sudo /usr/local/opt/caddy/bin/caddy reload --config /usr/local/etc/Caddyfile"
+   # Use launchctl to restart (preserves environment variables)
+   launchctl unload ~/Library/LaunchAgents/homebrew.mxcl.caddy.plist
+   launchctl load ~/Library/LaunchAgents/homebrew.mxcl.caddy.plist
    ```
 
 5. **Test changes**
@@ -376,4 +431,4 @@ docker stats --no-stream
 
 ---
 
-*Last updated: 2025-11-01*
+*Last updated: 2025-11-02*
