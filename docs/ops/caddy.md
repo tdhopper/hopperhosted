@@ -83,13 +83,16 @@ Custom build required for Cloudflare DNS-01 challenge support.
     The Caddyfile uses an environment variable for the Cloudflare API token, keeping secrets out of version control.
 
     ```bash
-    # Add plist to yadm ignore (contains actual token)
+    # Add plist and working copy to yadm ignore
     mkdir -p ~/.config/yadm
-    echo "Library/LaunchAgents/homebrew.mxcl.caddy.plist" >> ~/.config/yadm/ignore
+    cat >> ~/.config/yadm/ignore <<EOF
+    Library/LaunchAgents/homebrew.mxcl.caddy.plist
+    Caddyfile
+    EOF
 
-    # The Caddyfile in ~ is safe to commit
-    yadm add ~/Caddyfile ~/.config/yadm/ignore
-    yadm commit -m "Add Caddyfile with secure token handling"
+    # Commit the ignore file
+    yadm add ~/.config/yadm/ignore
+    yadm commit -m "Ignore Caddy plist and working copy"
     ```
 
     The Caddyfile references the token via `{env.CLOUDFLARE_API_TOKEN}`:
@@ -101,17 +104,20 @@ Custom build required for Cloudflare DNS-01 challenge support.
     }
     ```
 
+    !!! note
+        ~/Caddyfile is just a working copy that gets copied to `/usr/local/etc/Caddyfile`. No need to track it in version control.
+
 ### Important File Locations
 
 | Purpose | Path |
 |---------|------|
 | **Active Config** | `/usr/local/etc/Caddyfile` |
-| **Working Copy** | `~/Caddyfile` (tracked in yadm) |
+| **Working Copy** | `~/Caddyfile` (not tracked - local only) |
 | **Custom Binary** | `/usr/local/libexec/caddy/caddy-cloudflare` |
 | **Standard Binary** | `/usr/local/opt/caddy/bin/caddy` (unused) |
 | **Logs** | `/usr/local/var/log/caddy.log` |
 | **Data Directory** | `/usr/local/var/lib/caddy/` |
-| **LaunchAgent** | `~/Library/LaunchAgents/homebrew.mxcl.caddy.plist` (ignored by yadm) |
+| **LaunchAgent** | `~/Library/LaunchAgents/homebrew.mxcl.caddy.plist` (not tracked - contains secret) |
 
 !!! note
     LaunchAgent is hardcoded to use `/usr/local/etc/Caddyfile`, not `~/Caddyfile`
