@@ -29,22 +29,34 @@ Custom build required for Cloudflare DNS-01 challenge support.
 
 === "Build Custom Caddy"
 
-    ```bash
-    PREFIX="$(brew --prefix)"
-    sudo mkdir -p "$PREFIX/libexec/caddy"
+    Build in temporary location, then move to `/usr/local/libexec/caddy/` (keeps custom binaries separate from Homebrew-managed directories):
 
-    xcaddy build --with github.com/caddy-dns/cloudflare@latest \
-      --output "$PREFIX/libexec/caddy/caddy-cloudflare"
+    ```bash
+    # Build caddy with Cloudflare DNS plugin
+    cd /tmp
+    ~/go/bin/xcaddy build --with github.com/caddy-dns/cloudflare@latest \
+      --output caddy-cloudflare
+
+    # Move to permanent location
+    sudo mkdir -p /usr/local/libexec/caddy
+    sudo mv caddy-cloudflare /usr/local/libexec/caddy/
+    sudo chmod +x /usr/local/libexec/caddy/caddy-cloudflare
     ```
 
     **Verify Cloudflare module:**
     ```bash
-    "$PREFIX/libexec/caddy/caddy-cloudflare" list-modules | grep cloudflare
+    /usr/local/libexec/caddy/caddy-cloudflare list-modules | grep cloudflare
     ```
 
     Expected output:
     ```
     dns.providers.cloudflare
+    ```
+
+    **Create required directories with correct permissions:**
+    ```bash
+    sudo mkdir -p /usr/local/var/log /usr/local/var/lib
+    sudo chown -R $(whoami):staff /usr/local/var/lib /usr/local/var/log
     ```
 
 === "Configure brew services"
@@ -54,11 +66,10 @@ Custom build required for Cloudflare DNS-01 challenge support.
     brew services start caddy && sleep 1 && brew services stop caddy
 
     # Update LaunchAgent plist
-    PREFIX="$(brew --prefix)"
     PLIST=~/Library/LaunchAgents/homebrew.mxcl.caddy.plist
 
-    # Set custom binary path
-    /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 $PREFIX/libexec/caddy/caddy-cloudflare" "$PLIST"
+    # Set custom binary path to /usr/local/libexec/caddy/caddy-cloudflare
+    /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 /usr/local/libexec/caddy/caddy-cloudflare" "$PLIST"
 
     # Add Cloudflare API token environment variable
     /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:CLOUDFLARE_API_TOKEN string YOUR_TOKEN_HERE" "$PLIST"
@@ -105,22 +116,21 @@ Custom build required for Cloudflare DNS-01 challenge support.
     ```
 
     !!! note
-        ~/Caddyfile is just a working copy that gets copied to `/usr/local/etc/Caddyfile`. No need to track it in version control.
+        ~/Caddyfile should not be tracked in version control since it contains environment-specific configuration.
 
 ### Important File Locations
 
 | Purpose | Path |
 |---------|------|
-| **Active Config** | `/usr/local/etc/Caddyfile` |
-| **Working Copy** | `~/Caddyfile` (not tracked - local only) |
+| **Active Config** | `~/Caddyfile` (not tracked - local only) |
 | **Custom Binary** | `/usr/local/libexec/caddy/caddy-cloudflare` |
-| **Standard Binary** | `/usr/local/opt/caddy/bin/caddy` (unused) |
+| **Standard Binary** | `$(brew --prefix)/bin/caddy` (unused) |
 | **Logs** | `/usr/local/var/log/caddy.log` |
 | **Data Directory** | `/usr/local/var/lib/caddy/` |
 | **LaunchAgent** | `~/Library/LaunchAgents/homebrew.mxcl.caddy.plist` (not tracked - contains secret) |
 
 !!! note
-    LaunchAgent is hardcoded to use `/usr/local/etc/Caddyfile`, not `~/Caddyfile`
+    Our LaunchAgent uses `~/Caddyfile` directly. The plist watches this file and automatically reloads Caddy when it changes.
 
 
 ### Common Operations
@@ -151,25 +161,25 @@ Custom build required for Cloudflare DNS-01 challenge support.
 === "Edit Configuration"
 
     ```bash
-    # Edit working copy
+    # Edit Caddyfile directly - changes are auto-detected by WatchPaths
     vim ~/Caddyfile
-
-    # Copy to active location
-    sudo cp ~/Caddyfile /usr/local/etc/Caddyfile
     ```
+
+    !!! tip
+        The LaunchAgent is configured with `WatchPaths` to monitor `~/Caddyfile`. Caddy will automatically reload when you save changes.
 
 === "Validate Config"
 
     ```bash
     # Requires CLOUDFLARE_API_TOKEN for validation
-    CLOUDFLARE_API_TOKEN=xxx /usr/local/libexec/caddy/caddy-cloudflare validate --config /usr/local/etc/Caddyfile
+    CLOUDFLARE_API_TOKEN=xxx /usr/local/libexec/caddy/caddy-cloudflare validate --config ~/Caddyfile
     ```
 
 === "Reload Config"
 
     ```bash
-    # Reload without full restart (faster)
-    /usr/local/libexec/caddy/caddy-cloudflare reload --config /usr/local/etc/Caddyfile
+    # Manual reload without full restart (usually not needed due to WatchPaths)
+    /usr/local/libexec/caddy/caddy-cloudflare reload --config ~/Caddyfile
 
     # Or full restart via launchctl
     launchctl unload ~/Library/LaunchAgents/homebrew.mxcl.caddy.plist
@@ -336,7 +346,7 @@ Custom build required for Cloudflare DNS-01 challenge support.
 
 **Standard procedure for updating Caddyfile:**
 
-1. **Edit working copy**
+1. **Edit Caddyfile**
    ```bash
    vim ~/Caddyfile
    ```
@@ -346,27 +356,22 @@ Custom build required for Cloudflare DNS-01 challenge support.
    CLOUDFLARE_API_TOKEN=xxx /usr/local/libexec/caddy/caddy-cloudflare validate --config ~/Caddyfile
    ```
 
-3. **Copy to active location**
-   ```bash
-   sudo cp ~/Caddyfile /usr/local/etc/Caddyfile
-   ```
+3. **Save file**
 
-4. **Reload Caddy**
-   ```bash
-   # Use launchctl to restart (preserves environment variables)
-   launchctl unload ~/Library/LaunchAgents/homebrew.mxcl.caddy.plist
-   launchctl load ~/Library/LaunchAgents/homebrew.mxcl.caddy.plist
-   ```
+   Caddy will automatically reload due to `WatchPaths` configuration in the LaunchAgent. No manual reload needed!
 
-5. **Test changes**
+4. **Test changes**
    ```bash
    curl -I https://yourservice.hopperhosted.com
    ```
 
-6. **Monitor logs** (if issues occur)
+5. **Monitor logs** (if issues occur)
    ```bash
-   ssh dobro "tail -f /usr/local/var/log/caddy.log"
+   tail -f /usr/local/var/log/caddy.log
    ```
+
+!!! tip
+    The LaunchAgent `WatchPaths` monitors `~/Caddyfile` and automatically reloads Caddy when changes are detected. No need to manually restart the service!
 
 !!! info
     LaunchAgent is configured to start automatically at login, restart if it crashes, and run in background sessions.
